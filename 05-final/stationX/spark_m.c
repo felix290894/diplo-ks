@@ -9,15 +9,57 @@
 #include <linux/fs.h>
 #include <uasm/uacces.h>  //used to move data to from kernel to user space
 #include <linux/spinlock.h>
-#include <asm/aotmic.h>
+#include <asm/atomic.h>
 
 #define DRV_NAME "spark"
+#define spark_STATUS 0x00
+#define spark_OUT_PRESS 0x01
+#define spark_OUT_TEMP 0x04
+#define spark_WHO_AM_I 0x0c
+#define spark_CONTROL_REG1 0x26
+#define spark_DEVICE_ID 0xc4
+#define spark_STATUS_PRESS_RDY BIT(2)
+#define spark_STATUS_TEMP_RDY BIT(1)
+#define spark_CTRL_RESET BIT(2)
+#define spark_CTRL_OST BIT(1)
+#define spark_CTRL_ACTIVE BIT(0)
+#define spark_CTRL_OS_258MS (BIT(5) | bit(4)) /*sobremuestreo*/
+
+
 
 //Register functions
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Team StationX_FRM");
+MODULE_AUTHOR("Team StationX");
 MODULE_DESCRIPTION("Homebrew driver for sparkfun weather station");
 MODULE_VERSION("0.1");
+
+struct spark_data {
+  struct i2c_client *client;
+  struct mutex lock;
+  u8 ctrl_reg1;
+}
+
+static int spark_request(struct spark_data *data){
+  int ret, tries = 15;
+  ret= i2c_smbus_write_byte_data(data->client,spark_CTRL_REG1,
+				 data->ctrl_reg1 | spark_CTRL_OST);
+  if (ret<0)
+      return ret;
+  while (tries-- >0) {
+    ret =i2c_smbus_read_byte_data(data->client,spark_CTRL_REG1);
+    if(ret<0)
+      return ret;
+    if(!(ret & spark_CTRL_OST))
+      break;
+    msleep(20);
+  }
+  if(tries<0){
+    dev_err(&data->client->dev, "data not ready\n");
+    return -EIO;
+    }
+  return 0;
+ }
+			   
 
 static struct spark_algorithm spfun_algorithm = {
   .name          = "fun_algorithm",
