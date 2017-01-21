@@ -59,6 +59,24 @@ static int spark_request(struct spark_data *data){
     }
   return 0;
  }
+
+static int spark_read_raw(struct iio_dev *indio_dev,
+			  struct iio_chan_spec const *chan,
+			  int *val, int val, long mask){
+  struct spark_data *data = iio_priv(indio_dev);
+  __be32 tmp=0;
+  int ret;
+  switch (mask){
+  case IIO_CHAN_INFO_RAW:
+    if(iio_buffer_enabled(indio_dev))
+      return -EBUSY;
+    switch(chan->type){
+    case IIO_PRESSURE: /*lsb*/
+      mutex_lock()
+    }
+  }
+    
+}
 			   
 
 static struct spark_algorithm spfun_algorithm = {
