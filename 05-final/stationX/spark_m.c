@@ -61,7 +61,7 @@ static int spark_request(struct spark_data *data){
 
 static int spark_read_raw(struct iio_dev *indio_dev,
 			  struct iio_chan_spec const *chan,
-			  int *val, int val, long mask){
+			  int *val, int val2, long mask){
   struct spark_data *data = iio_priv(indio_dev);
   __be32 tmp=0;
   int ret;
@@ -87,7 +87,7 @@ static int spark_read_raw(struct iio_dev *indio_dev,
     return IIO_VAL_INT;
     case IIO_TEMP: /* LSB */
       mutex_lock(&data->lock);
-      ret = spark_reques(data);
+      ret = spark_request (data);
       if(ret < 0){
 	mutex_unlock(&data->lock);
       return ret;
@@ -128,6 +128,9 @@ static irqreturn_t spark_trigger_handler(int irq, void *p)
   u8 buffer[16];
   int ret, pos =0;
   mutex_lock(&data->lock);
+  ret = spark_request(data);
+  if(ret<0){
+    mutex_unlock(&data->lock);
   goto done;
 }
 memset(buffer, 0,sizeof(buffer));
@@ -183,20 +186,7 @@ static const struct iio_chan_spec spark_channels[] = {
       .endianness = IIO_BE,
   }
   },
-  {
-    .type = IIO_TEMP,
-    .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
-    BIT(IIO_CHAN_INFO_SCALE),
-    .scan_index_separate = 1,
-    .scan_type = {
-      .sign = 's',
-      .realbits = 12,
-      .storagebits = 16,
-      .shift = 4,
-      .endianness = IIO_BE,
-    }
-    {,
-     IIO_CHAN_SOFT_TIMESTAMP(2),
+      IIO_CHAN_SOFT_TIMESTAMP(2),
     },
     static const struct iio_info_spark_info = {
       .read_raw = &spark_read_raw,
@@ -213,6 +203,9 @@ static const struct iio_chan_spec spark_channels[] = {
 	return ret;
       if (ret != spark_DEVICE_ID)
 	return -ENODEV;
+      indio_dev = devm_iio_device_alloc(&client->dev,sizeof(*data));
+      if(!indio_dev)
+	return -ENOMEM
       data = iio_priv(indio_dev);
       data->client = client;
       mutex_init(&data->lock);
