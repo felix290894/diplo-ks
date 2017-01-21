@@ -72,11 +72,78 @@ static int spark_read_raw(struct iio_dev *indio_dev,
       return -EBUSY;
     switch(chan->type){
     case IIO_PRESSURE: /*lsb*/
-      mutex_lock()
+      mutex_lock(&data->lock);
+      ret = spark_request(data);
+    if(ret < 0){
+	mutex_unlock(&data->lock)
+    return ret;
+      }
+
+    ret = i2c_smbus_read_i2c_block_data(data->client,
+					spark_OUT_PRESS,3,(u8 *)&tmp);
+    mutex_unlock(&data->lock);
+    if(ret < 0)
+      return re;
+    *val = be2_to_cpu(tmp)>>12;
+    return IIO_VAL_INT;
+    case IIO_TEMP: /* LSB */
+      mutex_lock(&data->lock);
+      ret = spark_reques(data);
+      if(ret < 0){
+	mutex_unlock(&data->lock);
+      return ret;
+      }
+      ret = i2c_smbus_read_i2c_block_data(data->client,
+					  spark_OUT_TEMP,2,(u8 *) &tmp);
+      mutex_unlock(&data->lock);
+      if(ret<0)
+	return ret;
+      *val = sign_extend32(be32_to_cpu(tmp)>>20,11);
+      return IIO_VAL_INT;
+    default:
+      return -EINVAL;
     }
+
+  case IIO_CHAN_INFO_SCALE:
+    switch (chan->type) {
+    case IIO_PRESSURE:
+      *val = 0;
+      *val2 = 250;
+      return IIO_VAL_INT_PLUS_MICRO;
+    case IIO_TEMP:
+      *val = 0;
+      *val2 = 62500;
+      return IIO_VAL_INT_PLUS_MICRO;
+    default:
+      return -EINVAL;
+    }    
   }
-    
+  return -EINVAL;
 }
+
+static irqreturn_t spark_trigger_handler(int irq, void *p)
+{
+  struct iio_poll_func +pf = p;
+  struct iio_dev *indio_dev = pf -> indio_dev;
+  struct spark_data *data = iio_priv(indio_dev);
+  u8 buffer[16];
+  int ret, pos =0;
+  mutex_lock(&data->lock);
+  goto done;
+}
+memset(buffer, 0,sizeof(buffer));
+if(test_bit(0,indio_dev->active_scan_mask)){
+  ret = i2c_smbus_read_i2c_block_data(data->client,
+				      spark_OUT_PRESS,3,&buffer[pos]);
+  if(ret<0){
+    mutex_unlock(&data->lock);
+    goto done;
+  }
+  pos = +4;
+ }
+if (test_bit(1,indio_dev))
+    
+
 			   
 
 static struct spark_algorithm spfun_algorithm = {
